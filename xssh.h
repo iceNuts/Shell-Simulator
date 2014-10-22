@@ -20,6 +20,8 @@ typedef struct variable {
 
 //Function definitions
 
+void initialize();
+
 //Shell is the function that accepts and executes given commands
 int shell(int fflag, int xflag, char **fvalp, variable *variables);
 
@@ -28,6 +30,12 @@ int builtin(char **cmdString, variable *variables);
 
 //Catches the Ctrl-C signal and kills the foreground process running in xssh
 void sigint_handler(int sig);
+void sigquit_handler(int sig);
+void sigcont_handler(int sig);
+void sigtstp_handler(int sig);
+void sigchld_handler(int sig);
+
+
 
 //Replaces the local variables of the shell
 int varSubstitution(char *string, variable *variables);
