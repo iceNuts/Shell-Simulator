@@ -11,14 +11,19 @@ int dval = 0;
 FILE *cmd;
 FILE *inputFilename;
 FILE *outputFilename;
-char histBuffer[512];
-char *histHead = histBuffer;
-char *histThis = histBuffer;
-char *histTail = histBuffer;
 
-int main(int argc, char **argv) {
+char histBuffer[100][99];
+
+char repeatCommand[100][100][100];
+variable *repeatVariables[100];
+char **repeatedCmd;
+int cmd_count = 0;
+int recmd_count = 0;
+
+int main(int argc, char **argv) 
+{
     //Store shell pid
-    sprintf(shell_pid,"%d",getpid());
+    sprintf(shell_pid, "%d", getpid());
 
     //Setup signale handling for SIGINT
     struct sigaction sigHandler;
@@ -97,7 +102,8 @@ int shell(int fflag, int xflag, char **fvalp, variable *variables){
         } else {
             //read from command line
             read = readline(">> ");
-            strncpy(line,read,99);
+            strncpy(line, read, 99);
+            strncpy(histBuffer[cmd_count++], line, 99);
         }
 
         //Process given command
@@ -231,9 +237,26 @@ int shell(int fflag, int xflag, char **fvalp, variable *variables){
     }
 }
 
+int arraySize(char command[][100])
+{
+    int col = 0;
+    int wid = 100;
+    while(command[col++] != NULL);
+    return col * wid;
+}
+
 int builtin(char **cmdString, variable *variables)
 {
     char **command = cmdString;
+    
+    int i = 0;
+    char *c; ;
+    while((c = command[i]) != NULL) {
+        strncpy(repeatCommand[recmd_count][i], c, strlen(c));
+        i++;
+    }
+    recmd_count++;
+
     //If show command
     if (!strcmp(command[0],"show")) {
         //go through command strings and print them out.
@@ -347,14 +370,46 @@ int builtin(char **cmdString, variable *variables)
         }
         return 1;
     }
-    
+    if (!strcmp(command[0], "history")) {
+        int cmd_num = 0;
+        if (command[1] != NULL) {
+            cmd_num = atoi(command[1]);
+            if (cmd_num < cmd_count) {
+                printf("%s\n", histBuffer[cmd_num]);
+                int size = arraySize(repeatCommand[cmd_num]);
+                repeatedCmd = malloc(size*sizeof(char));
+                memcpy(repeatedCmd, repeatCommand[cmd_num], size*sizeof(char));
+            }
+            else {
+                printf("%s\n", histBuffer[cmd_count-1]);
+                int nth = cmd_count > 1? cmd_count-2 : 0;
+                int size = arraySize(repeatCommand[nth]);
+                repeatedCmd = malloc(size*sizeof(char));
+                memcpy(repeatedCmd, repeatCommand[nth], size*sizeof(char));
+            }
+        }
+        else {
+            int i = 0;
+            for (i = 0; i < cmd_count; i++) {
+                printf("%s\n", histBuffer[i]);
+            }
+            int nth = cmd_count > 1? cmd_count-2 : 0;
+            int size = arraySize(repeatCommand[nth]);
+            repeatedCmd = malloc(size*sizeof(char));
+            memcpy(repeatedCmd, repeatCommand[nth], size*sizeof(char));
+        }
+    }
+    if (!strcmp(command[0], "repeat")) {
+        printf("%s\n", repeatedCmd[0]);
+        builtin(repeatedCmd, variables);
+    }
     //Else not a built in command
     else {
         return 0;
     }
 }
 
-/*void sigint_handler(int sig)
+void sigint_handler(int sig)
 {
     if (fg) {
         kill(fg_pid, SIGINT);
@@ -377,7 +432,7 @@ void sigchld_handler(int sig)
     }
     return;
     
-}*/
+}
 
 int varSubstitution(char *string, variable *variables) {
     int i = 0;
