@@ -89,7 +89,7 @@ void shell(cmd* arguments) {
                 else {
                     int childStatus;
                     wait(&childStatus);
-                    foreground_ret_value = childStatus;
+                    foreground_ret_value = WEXITSTATUS(childStatus);
                     return;
                 }
             }
@@ -117,7 +117,7 @@ void shell(cmd* arguments) {
             int childStatus;
             wait(&childStatus);
             fg = 0;
-            foreground_ret_value = childStatus;
+            foreground_ret_value = WEXITSTATUS(childStatus);
         }
     }
     // internal exec starting at initial
