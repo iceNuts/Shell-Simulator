@@ -628,11 +628,8 @@ void exec_external_cmdline(cmd* arguments) {
             }
             // detached
             else {
+                setpgid(0, 0);
                 setsid();
-                signal(SIGCHLD,SIG_IGN); /* ignore child */
-                signal(SIGTSTP,SIG_IGN); /* ignore tty signals */
-                signal(SIGTTOU,SIG_IGN);
-                signal(SIGTTIN,SIG_IGN);
             }
             execvp(action, execArgs);
             exit(0);
