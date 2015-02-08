@@ -648,7 +648,7 @@ void exec_external_cmdline(cmd* arguments) {
                 }
                 close(link[0]);
                 // wait
-                printf("Press ctrl+d to stop sub task.\n");
+                printf("\nPress ctrl+d to stop sub task.\n");
                 int childStatus;
                 wait(&childStatus);
                 // clear up
@@ -698,14 +698,12 @@ void print_local_mem() {
 void redirection(char **cmdString,int numCmd, int *inputFile, int *outputFile) {
     int i;
     for (i = 0; i < numCmd; i++) {
-        if (!strcmp(cmdString[i],"<")) {
+        if (0 == strcmp(cmdString[i],"<")) {
             *inputFile = 1;
             inputFilename = fopen(cmdString[i+1],"r");
-            cmdString[i] = NULL;
-        } else if (!strcmp(cmdString[i],">")) {
+        } else if (0 == strcmp(cmdString[i],">")) {
             *outputFile = 1;
-            outputFilename = fopen(cmdString[i+1],"w");
-            cmdString[i] = NULL;
+            outputFilename = fopen(cmdString[i+1],"wb");
         }
     }
 }
