@@ -46,7 +46,6 @@ int main(int argc, char **argv)
     // shape initial input
     global_root = NULL;
     local_root = NULL;
-
     cmd arguments = {argc, argv};
     shell(&arguments);
     return 0;
@@ -83,6 +82,7 @@ void shell(cmd* arguments) {
                 // run and return
                 pid_t proc = fork();
                 if (proc == 0) {
+                    local_root = NULL;
                     execvp(execArgs[0], execArgs);
                     exit(0);
                 }
@@ -105,6 +105,7 @@ void shell(cmd* arguments) {
         // new shell
         if (shellPid == 0) {
             fg = 0;
+            local_root = NULL;
             shellInterface();
         }
         else if (shellPid < 0) {
@@ -217,15 +218,8 @@ void export(char* key, char* value) {
     mem_object* p = global_root;
     while (p != NULL) {
         if (0 == strcmp(p -> key, key)) {
-            munmap(p->value, sizeof(p->value));
-            p -> value = NULL;
-            p -> value = mmap(
-                NULL, 
-                sizeof(char)*(VAR_MAX_LEN), 
-                PROT_READ | PROT_WRITE, 
-                MAP_SHARED | MAP_ANON, 
-                -1, 
-                0);
+            // no more new space
+            // use old one to be shared
             strcpy(p -> value, value);
             flag = 0;
             break;
@@ -286,15 +280,12 @@ void unexport(char* key) {
     }
     if (0 == flag) {
         printf("Unexport global var: %s -> %s\n", p->key, p->value);
+        if (p == global_root) {
+            global_root = global_root -> next;
+        }
         munmap(p->key, sizeof(p->key));
         munmap(p->value, sizeof(p->value));
         munmap(p, sizeof(mem_object));
-        p -> key = NULL;
-        p -> value = NULL;
-        if (p == global_root) {
-            p = NULL;
-            global_root = global_root -> next;
-        }
     }
     else {
         printf("No such global variable!\n");
@@ -613,6 +604,7 @@ void exec_external_cmdline(cmd* arguments) {
         pid_t proc = fork();
         // run program
         if (proc == 0) {
+            local_root = NULL;
             if (0 != background_flag) {
 
                 if (fileOut) {

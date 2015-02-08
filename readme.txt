@@ -19,6 +19,11 @@ Design
 
     To help debug, there is a function called print_mem, which is used to print out all linked list in shared memory.
 
+New command
+    
+    There is a new command:
+        mm 0 shows all local variables;
+        mm 1 shows all global variables;
 
 Assumptions
     
