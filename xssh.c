@@ -2,40 +2,43 @@
 
 #include "xssh.h"
 
-void shell(cmd*);
-void shellInterface();
-int isInternalCmd(char*);
-int command(char*, cmd*);
-void quitHandler(int);
-void export(char*, char*);
-void unexport(char*);
-void set(char*, char*);
-void unset(char*);
-void changeDir(cmd*);
-void exitShell(cmd*);
-void waitProcess(cmd*);
-void show(cmd*);
-char* get_local_var(char*);
-void exec_internal_cmdline(cmd*);
-void exec_external_cmdline(cmd*);
+void shell(cmd*);   // operation branch
+void shellInterface();  // shell interface
+int isInternalCmd(char*);   // check if cmd is interal
+int command(char*, cmd*);   // parsing cmd line
+void quitHandler(int);  // handle ctrl+c 
+void export(char*, char*);  // set global variable
+void unexport(char*);   // unset global variable
+void set(char*, char*); // set local variable
+void unset(char*);  // unset local variable
+void changeDir(cmd*);   // change directory
+void exitShell(cmd*);   // exit shell with status
+void waitProcess(cmd*); // wait for a process
+void show(cmd*);    // display some variables in a new line
+char* get_local_var(char*); // find key and return its value in memory
+void exec_internal_cmdline(cmd*);   // execute internal command
+void exec_external_cmdline(cmd*);   // execute external command
 
 // helper
-void print_mem();
-void redirection(char**, int, int*, int*);
+void print_mem();   // print shared memory linklist
+void redirection(char**, int, int*, int*);  // parsing cmd line to redirect stdin/stdout to file
 
-static mem_object* global_last;
+// works for export / unexport
+static mem_object* global_last; 
 static mem_object* global_root;
 
+// works for set / unset
 mem_object* local_last;
 mem_object* local_root;
 
-int fg;
-int show_flag;
-int debug_level;
-int foreground_ret_value;
-int last_background_pid;
-FILE *inputFilename;
-FILE *outputFilename;
+int fg; // foreground flag
+int show_flag;  // -x flag
+int debug_level;    // -d level flag
+int foreground_ret_value;   // last foreground return value
+int last_background_pid;    // last background pid
+FILE *inputFilename;    // redirect input file
+FILE *outputFilename;   // redirect output file
+
 
 int main(int argc, char **argv)
 {
@@ -55,6 +58,7 @@ void shell(cmd* arguments) {
     int argCount = arguments -> count;
     char** args = arguments -> vars;
 
+    // every process should handle ctrl+c
     signal(SIGINT, quitHandler);
 
     // ignore empty line
@@ -73,10 +77,12 @@ void shell(cmd* arguments) {
             }
             // execute at once
             else if (0 == strcmp(args[i], "-f")) {
+                // clean argument list
                 char** execArgs = (char**)malloc(sizeof(char*)*(argCount-i+1));
                 for (j = i+1; j < argCount; j++)
                     execArgs[j-(i+1)] = args[j];
                 execArgs[j-(i+1)] = NULL;
+                // run and return
                 pid_t proc = fork();
                 if (proc == 0) {
                     execvp(execArgs[0], execArgs);
@@ -631,6 +637,7 @@ void exec_external_cmdline(cmd* arguments) {
                 }
                 close(link[0]);
                 // wait
+                printf("Press ctrl+d to stop sub task.\n");
                 int childStatus;
                 wait(&childStatus);
                 // clear up

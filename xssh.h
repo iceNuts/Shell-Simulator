@@ -14,12 +14,14 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 
+// command line model
 typedef struct
 {
     int count;
     char **vars;
 } cmd;
 
+// key-value memory model
 typedef struct mem_obj
 {
     char* key;
