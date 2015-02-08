@@ -20,15 +20,15 @@ void exec_internal_cmdline(cmd*);   // execute internal command
 void exec_external_cmdline(cmd*);   // execute external command
 
 // helper
-void print_mem();   // print shared memory linklist
+void print_global_mem();   // print shared memory linklist
+void print_local_mem();     // print local memory linklist
+void print_mem(char*);
 void redirection(char**, int, int*, int*);  // parsing cmd line to redirect stdin/stdout to file
 
 // works for export / unexport
-static mem_object* global_last; 
 static mem_object* global_root;
 
 // works for set / unset
-mem_object* local_last;
 mem_object* local_root;
 
 int fg; // foreground flag
@@ -45,9 +45,7 @@ int main(int argc, char **argv)
     printf("Created By Li Zeng™ 433519. 06/Feb/2015.\n");
     // shape initial input
     global_root = NULL;
-    global_last = NULL;
     local_root = NULL;
-    local_last = NULL;
 
     cmd arguments = {argc, argv};
     shell(&arguments);
@@ -180,7 +178,7 @@ int command(char* input, cmd* arguments) {
 }
 
 int isInternalCmd(char* cmd) {
-    char* cmds[8] = {
+    char* cmds[9] = {
         "show",
         "set",
         "unset",
@@ -188,10 +186,11 @@ int isInternalCmd(char* cmd) {
         "unexport",
         "chdir",
         "exit",
-        "wait"
+        "wait",
+        "mm",
     };
     int i;
-    for (i = 0; i < 8; i++) {
+    for (i = 0; i < 9; i++) {
         if (0 == strcmp(cmd, cmds[i])) {
             return 0;
         }
@@ -218,6 +217,15 @@ void export(char* key, char* value) {
     mem_object* p = global_root;
     while (p != NULL) {
         if (0 == strcmp(p -> key, key)) {
+            munmap(p->value, sizeof(p->value));
+            p -> value = NULL;
+            p -> value = mmap(
+                NULL, 
+                sizeof(char)*(VAR_MAX_LEN), 
+                PROT_READ | PROT_WRITE, 
+                MAP_SHARED | MAP_ANON, 
+                -1, 
+                0);
             strcpy(p -> value, value);
             flag = 0;
             break;
@@ -252,13 +260,12 @@ void export(char* key, char* value) {
         strcpy(obj -> value, value);
         obj -> next = NULL;
 
-        if (NULL == global_last) {
+        if (NULL == global_root) {
             global_root = obj;
-            global_last = global_root;
         }
         else {
-            global_last -> next = obj;
-            global_last = obj;
+            obj -> next = global_root;
+            global_root = obj;
         }
     }
 }
@@ -282,6 +289,12 @@ void unexport(char* key) {
         munmap(p->key, sizeof(p->key));
         munmap(p->value, sizeof(p->value));
         munmap(p, sizeof(mem_object));
+        p -> key = NULL;
+        p -> value = NULL;
+        if (p == global_root) {
+            p = NULL;
+            global_root = global_root -> next;
+        }
     }
     else {
         printf("No such global variable!\n");
@@ -299,6 +312,9 @@ void set(char* key, char* value) {
     mem_object* p = local_root;
     while (p != NULL) {
         if (0 == strcmp(p -> key, key)) {
+            free(p -> value);
+            p -> value = NULL;
+            p -> value = malloc(sizeof(char)*strlen(value));
             strcpy(p -> value, value);
             flag = 0;
             break;
@@ -315,13 +331,12 @@ void set(char* key, char* value) {
         strcpy(obj -> value, value);
         obj -> next = NULL;
 
-        if (NULL == local_last) {
+        if (NULL == local_root) {
             local_root = obj;
-            local_last = local_root;
         }
         else {
-            local_last -> next = obj;
-            local_last = obj;
+            obj -> next = local_root;
+            local_root = obj;
         }
     }
 }
@@ -342,9 +357,15 @@ void unset(char* key) {
     }
     if (0 == flag) {
         printf("Unset local var: %s -> %s\n", p->key, p->value);
-        free(p->key);
-        free(p->value);
+        free(p -> key);
+        free(p -> value);
         free(p);
+        p -> key = NULL;
+        p -> value = NULL;
+        if (p == local_root) {
+            p = NULL;
+            local_root = local_root -> next;
+        }
     }
     else {
         printf("No such local variable!\n");
@@ -518,6 +539,8 @@ void exec_internal_cmdline(cmd* arguments) {
         exitShell(arguments);
     else if (0 == strcmp("wait", action) && argCount == 2)
         waitProcess(arguments);
+    else if (0 == strcmp("mm", action) && argCount == 2)
+        print_mem(args[1]);
     else 
         printf("Internal commands format issue.\n");
 }
@@ -538,16 +561,15 @@ void exec_external_cmdline(cmd* arguments) {
         char* prefix = strtok(path, ":");
         int found_flag = -1;
         while (prefix != NULL) {
-            if (NULL != newAction) {                
-                free(newAction);
-                newAction = NULL;
-            }
+            free(newAction);
+            newAction = NULL;
             newAction = (char*)malloc(sizeof(char)*(strlen(prefix)+strlen(action)+2));
             strcpy(newAction, prefix);
             strcat(newAction, "/");
             strcat(newAction, action);
             if (access(newAction, F_OK) != -1 && access(newAction, X_OK) != -1) {
                 free(action);
+                action = NULL;
                 action = newAction;
                 found_flag = 0;
                 printf(" -> %s\n", action);
@@ -641,10 +663,10 @@ void exec_external_cmdline(cmd* arguments) {
                 int childStatus;
                 wait(&childStatus);
                 // clear up
-                if (NULL != newAction)
-                    free(newAction);
-                if (NULL != execArgs)
-                    free(execArgs);
+                free(newAction);
+                newAction = NULL;
+                free(execArgs);
+                execArgs = NULL;
             }
             else {
                 last_background_pid = proc;
@@ -659,8 +681,25 @@ void exec_external_cmdline(cmd* arguments) {
 
 // helper
 
-void print_mem() {
+void print_mem(char* flag) {
+    if (0 == strcmp("0", flag)) {
+        print_local_mem();
+    }
+    else if (0 == strcmp("1", flag)) {
+        print_global_mem();
+    }
+}
+
+void print_global_mem() {
     mem_object* p = global_root;
+    while (p != NULL) {
+        printf("%s %s\n", p -> key, p -> value);
+        p = p -> next;
+    }
+}
+
+void print_local_mem() {
+    mem_object* p = local_root;
     while (p != NULL) {
         printf("%s %s\n", p -> key, p -> value);
         p = p -> next;
@@ -681,6 +720,7 @@ void redirection(char **cmdString,int numCmd, int *inputFile, int *outputFile) {
         }
     }
 }
+
 
 
 

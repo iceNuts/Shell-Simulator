@@ -27,14 +27,13 @@ Assumptions
     Shell script with -f flag is treated like external command but could NOT run in background.
 
     Global variables are based on shared memory, so it could be manipulated by child process:
-        ```
+
             >> export x 10
             >> ./xssh 
             >> export x 5
             >> ^C
             ...
             # now x is 5 
-        ```
 
 FAQ
 
